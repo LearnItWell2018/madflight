@@ -53,6 +53,7 @@ int Imu::setup() {
   _imu_ll_interrupt_enabled = false;
 
   delete gizmo;
+  gizmo = nullptr;
 
   //exit if gizmo == NONE
   if(config.gizmo == Cfg::imu_gizmo_enum::mf_NONE) return 0;
@@ -203,6 +204,11 @@ bool Imu::update() {
     if(config.has_mag) {
       float mx, my, mz;
       gizmo->getMotion9NED(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
+      if(!gizmo->sampleValid()) {
+        read_error_cnt++;
+        runtimeTrace.stop(false);
+        return false;
+      }
       if(config.pmag) {
         if(((MagGizmoIMU*)config.pmag->gizmo)->push_nwu_from_imu(mx, my, mz)) {
           config.pmag->update();
@@ -210,6 +216,11 @@ bool Imu::update() {
       }
     }else{
       gizmo->getMotion6NED(&ax, &ay, &az, &gx, &gy, &gz);
+      if(!gizmo->sampleValid()) {
+        read_error_cnt++;
+        runtimeTrace.stop(false);
+        return false;
+      }
     }
 
     // apply zero offsets
@@ -334,12 +345,12 @@ void Imu::_interrupt_handler() {
   uint32_t task_ts = micros();
 
   //update sensor data
-  update();
+  bool updated = update();
 
   this->stat_io_runtime += micros() - task_ts; //runtime of SPI/I2C transfer
 
   //call external update event handler
-  if(onUpdate) onUpdate();
+  if(updated && onUpdate) onUpdate();
 
   uint32_t rt = micros() - task_ts; //runtime of full update including external event handler
   this->stat_runtime += rt;
@@ -392,7 +403,15 @@ void _imu_ll_interrupt_handler();
         Serial.println("IMU: IMU_EXEC_FREERTOS");
       #endif
     }
+    if(!_imu_ll_task_handle) {
+      Serial.println("IMU: ERROR unable to allocate IMU task");
+      return;
+    }
     attachInterrupt(digitalPinToInterrupt(interrupt_pin), _imu_ll_interrupt_handler, RISING);
+    #if defined ARDUINO_ARCH_STM32
+      // FromISR notification APIs require a FreeRTOS-compatible IRQ priority.
+      HAL_NVIC_SetPriority(hal_get_irqn_from_pin(interrupt_pin), configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY, 0);
+    #endif
   }
   
   inline void _imu_ll_interrupt_handler2() {

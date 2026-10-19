@@ -47,8 +47,21 @@ class ImuGizmoMPUXXXX : public ImuGizmo {
       if(!config || !state) return nullptr;
 
       // Create SensorDevice
-      SensorDevice *dev = SensorDevice::createImuDevice(config);
+      // Zero means the sensor's default address, not I2C general call.
+      // Keep the caller's config unchanged; explicit addresses (e.g. 0x69) win.
+      ImuConfig device_config = *config;
+      if(device_config.uses_i2c && device_config.i2c_adr == 0) {
+        device_config.i2c_adr = 0x68;
+      }
+      SensorDevice *dev = SensorDevice::createImuDevice(&device_config);
       if(!dev) return nullptr;
+      if(!dev->isSPI()) {
+        Serial.printf("IMU: MPU I2C address=0x%02X INT GPIO=%d\n",
+                      device_config.i2c_adr, config->pin_int);
+        device_config.i2c_bus->beginTransmission(device_config.i2c_adr);
+        uint8_t status = device_config.i2c_bus->endTransmission();
+        Serial.printf("IMU: I2C probe status=%u (0=ACK, nonzero=bus/address error)\n", status);
+      }
 
       //translate cfg to mpu type
       MPUXXXX::MPU_Type mpu_type = MPUXXXX::MPU_Type::UNKNOWN;
@@ -66,7 +79,7 @@ class ImuGizmoMPUXXXX : public ImuGizmo {
 
       // Create sensor
       MPUXXXX* sensor = new MPUXXXX();
-      int rv = sensor->begin(mpu_type, dev, 16, 2000, config->sample_rate_requested);
+      int rv = sensor->begin(mpu_type, dev, IMU_GYRO_DPS, IMU_ACCEL_G, config->sample_rate_requested);
       if(rv < 0) {
         if(config->gizmo != Cfg::imu_gizmo_enum::mf_AUTO) Serial.printf("IMU: ERROR creating MPU sensor, rv=%d\n",rv);
         delete sensor;
@@ -82,9 +95,14 @@ class ImuGizmoMPUXXXX : public ImuGizmo {
       //return config
       config->sample_rate = sensor->get_rate();
       config->has_mag = sensor->has_mag;
+      Serial.printf("IMU: %s initialized, sample rate=%lu Hz; waiting for data-ready interrupts\n",
+                    sensor->type_name(), (unsigned long)config->sample_rate);
 
       return gizmo;
     }
+
+    //Get sensor data in NED frame
+    bool sampleValid() override { return dev->lastReadOK(); }
 
     //Get sensor data in NED frame
     //x=North (forward), y=East (right), z=Down 

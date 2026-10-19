@@ -31,14 +31,14 @@ SensorDevice* SensorDevice::createImuDevice(ImuConfig *config) {
 
     // Detect sensor
     SensorDevice *dev = nullptr;
-    if(config->spi_bus) {
+    if(!config->uses_i2c && config->spi_bus) {
         if(config->spi_cs >= 0) {
             // Use Mode0 (Mode3 is buggy on ESP32 https://esp32.com/viewtopic.php?t=36723)
             dev = new SensorDeviceSPI(config->spi_bus, config->spi_cs, SPI_MODE0);
         }
-    }else if(config->i2c_bus) {
+    }else if(config->uses_i2c && config->i2c_bus) {
         dev = new SensorDeviceI2C(config->i2c_bus, config->i2c_adr);
     }
-    if(!dev) Serial.println("asdfasdf");
+    if(!dev) Serial.println("IMU: no usable bus for the selected bus type");
     return dev;
 }

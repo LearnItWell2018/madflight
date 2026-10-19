@@ -46,10 +46,10 @@ class MPUXXXX {
     };
 
     //raw measurements in NED frame
-    int16_t rawa[3]; //accelerometer
-    int16_t rawg[3]; //gyroscope
-    int16_t rawm[3]; //magnetometer
-    int16_t rawt; //temperature
+    int16_t rawa[3] = {}; //accelerometer
+    int16_t rawg[3] = {}; //gyroscope
+    int16_t rawm[3] = {}; //magnetometer
+    int16_t rawt = 0; //temperature
 
     float acc_multiplier;
     float gyro_multiplier;
@@ -68,7 +68,7 @@ class MPUXXXX {
     //some MPU6000/6050 revisions have half acc resolution
     uint8_t rev1 = 0;
     uint8_t rev2 = 0;
-    int acc_resolution = 32786;
+    int acc_resolution = 32768;
 
   public:
     AK8963 *mag9250 = nullptr; //magnetometer of MPU9250

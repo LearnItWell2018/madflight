@@ -30,7 +30,7 @@ SOFTWARE.
 
 //Datasheet: i2c clock up to 400kHz
 #define MPU_I2C_FREQ_SLOW 400000
-#define MPU_I2C_FREQ_FAST 1000000 //2.5 times overclocking
+#define MPU_I2C_FREQ_FAST 400000 //Keep sample reads within the MPU I2C specification.
 
 #include "MPUXXXX.h"
 #include "MPU_regs.h"
@@ -56,6 +56,8 @@ int MPUXXXX::begin(MPU_Type type, SensorDevice *dev, int gyro_scale_dps, int acc
 
     //check whoami
     int wai = whoami();
+    Serial.printf("IMU: MPU %s clock: setup=%d Hz, samples=%d Hz; WHO_AM_I=0x%02X\n",
+                  _dev->isSPI() ? "SPI" : "I2C", freq_slow, freq_fast, wai);
     if(_type == MPU6000 && wai != 0x68) {
         Serial.printf("IMU: WARNING: MPU6000 whoami mismatch, got:0x%02X expected:0x68, attempting autodetect\n",wai);
         _type = AUTO;
@@ -194,11 +196,11 @@ void MPUXXXX::set_acc_resolution() {
         rev1 = ((data[5]&1)<<2) | ((data[3]&1)<<1) | ((data[1]&1)<<0);
         rev2 = _dev->readReg(MPUREG_PRODUCT_ID) & 0x0F;
         //rev 0.4 and 1.x have half acc resolution
-        acc_resolution = ( (rev1 == 0 && rev2 == 4) || (rev1 == 1) ? 16384 : 32786);
+        acc_resolution = ( (rev1 == 0 && rev2 == 4) || (rev1 == 1) ? 16384 : 32768);
 
         Serial.printf("IMU: MPU60X0 revision:%d.%d\n",(int)rev1,(int)rev2);
     }else{
-        acc_resolution = 32786;
+        acc_resolution = 32768;
     }
 }
 
@@ -251,6 +253,7 @@ void MPUXXXX::read6()
     uint8_t d[14]; //response is 14 bytes = 6 acc + 2 temp + 6 gyro
     _dev->setFreq(freq_fast);
     _dev->readRegs(MPUREG_ACCEL_XOUT_H, d, 14); 
+    if(!_dev->lastReadOK()) return;
     // Get accelerometer (6 bytes) - sensor orientation for acc/gyro is NWU
     rawa[0] = -(int16_t)((d[0]<<8) | d[1]); //-N = -N
     rawa[1] =  (int16_t)((d[2]<<8) | d[3]); //-E =  W
@@ -274,6 +277,7 @@ void MPUXXXX::read9()
     uint8_t d[20]; //response is 21 bytes = 6 acc + 2 temp + 6 gyro + 6 mag + 1 magstatus (last byte not retrieved)
     _dev->setFreq(freq_fast);
     _dev->readRegs(MPUREG_ACCEL_XOUT_H, d, 20); 
+    if(!_dev->lastReadOK()) return;
     // Get accelerometer (6 bytes) - sensor orientation for acc/gyro is NWU
     rawa[0] = -(int16_t)((d[0]<<8) | d[1]); //-N = -N
     rawa[1] =  (int16_t)((d[2]<<8) | d[3]); //-E =  W

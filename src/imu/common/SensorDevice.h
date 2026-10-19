@@ -38,6 +38,7 @@ class SensorDevice {
     virtual uint32_t writeRegs( uint8_t reg, uint8_t *data, uint16_t n ) = 0;
     virtual void readRegs( uint8_t reg, uint8_t *data, uint16_t n ) = 0;
     virtual bool isSPI() = 0;
+    virtual bool lastReadOK() { return true; }
 
     uint32_t writeReg( uint8_t reg, uint8_t data ) {
       return writeRegs(reg, &data, 1);
@@ -121,6 +122,7 @@ class SensorDeviceI2C : public SensorDevice{
   private:
     MF_I2C *_i2c;
     uint8_t _i2c_adr;
+    bool _lastReadOK = false;
 
   public:
     SensorDeviceI2C(MF_I2C *i2c, uint8_t i2c_adr) {
@@ -130,7 +132,7 @@ class SensorDeviceI2C : public SensorDevice{
     }
 
     void setFreq(int freq) override {
-      _i2c->setClock(freq);
+      if(_i2c->getClock() != (uint32_t)freq) _i2c->setClock(freq);
     }
 
     uint32_t writeRegs( uint8_t reg, uint8_t *data, uint16_t n ) override {
@@ -139,21 +141,22 @@ class SensorDeviceI2C : public SensorDevice{
       for(uint32_t i = 0; i < n; i++) {
         _i2c->write(data[i]);
       }
-      _i2c->endTransmission();
-      //Serial.printf("WriteReg(reg0x%02X, data=0x%02X) --> ", reg, data); ReadReg(reg);
-      return 0;
+      return _i2c->endTransmission();
     }
 
     void readRegs( uint8_t reg, uint8_t *data, uint16_t n ) override {
+      _lastReadOK = false;
       _i2c->beginTransmission(_i2c_adr); 
       _i2c->write(reg);
-      _i2c->endTransmission(false); //false = repeated start
-      uint8_t bytesReceived = _i2c->requestFrom(_i2c_adr, n);
+      if(_i2c->endTransmission(false) != 0) return; //repeated start
+      uint32_t bytesReceived = _i2c->requestFrom(_i2c_adr, n);
       if(bytesReceived == n) {
-        _i2c->readBytes(data, bytesReceived);
+        _lastReadOK = (_i2c->readBytes(data, bytesReceived) == n);
       }
       //Serial.printf("ReadRegs(reg=0x%02X, n=%d) --> data[%d]=0x%02X\n", reg, n, bytesReceived, data[0]);
     }
+
+    bool lastReadOK() override { return _lastReadOK; }
 
     bool isSPI() {
       return false;

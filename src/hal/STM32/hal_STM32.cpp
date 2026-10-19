@@ -174,7 +174,6 @@ void hal_print_pin_name(int pinnum) {
   }
 }
 
-#if MF_HACK_STM32_INTERRUPT_PRIORITY
 IRQn_Type hal_get_irqn_from_pin(int pin) {
   // converts an arduino pin number to a STM32 HAL interrupt id
   // taken from https://github.com/stm32duino/Arduino_Core_STM32/blob/main/libraries/SrcWrapper/src/stm32/interrupt.cpp#L158
@@ -199,7 +198,6 @@ IRQn_Type hal_get_irqn_from_pin(int pin) {
       return EXTI15_10_IRQn;
   }
 }
-#endif //MF_HACK_STM32_INTERRUPT_PRIORITY
 
 #if STM32_CORE_VERSION_MAJOR >= 3
   #define MF_STM32_HWSERIAL Uart
@@ -306,10 +304,10 @@ MF_Serial* hal_get_ser_bus(int bus_id, int baud, MF_SerialMode mode, bool invert
 
 MF_I2C* hal_get_i2c_bus(int bus_id) { 
   //exit on invalid bus_id
-  if(bus_id < 0 || bus_id >= HAL_SER_NUM) return nullptr;
+  if(bus_id < 0 || bus_id >= HAL_I2C_NUM) return nullptr;
 
   //exit when exists
-  if(hal_i2c[bus_id]) hal_i2c[bus_id];
+  if(hal_i2c[bus_id]) return hal_i2c[bus_id];
 
   //create bus
   switch(bus_id) {
@@ -318,19 +316,17 @@ MF_I2C* hal_get_i2c_bus(int bus_id) {
         auto *i2c = &Wire;
         i2c->setSDA(cfg.pin_i2c0_sda);
         i2c->setSCL(cfg.pin_i2c0_scl);
-        //i2c->setClock(1000000);
         i2c->begin();
         hal_i2c[0] = new MF_I2CPtrWrapper<decltype(i2c)>( i2c );
-        hal_i2c[0]->setClock(1000000); //set clock here so that MF_I2C wrapper knows the clock speed
+        hal_i2c[0]->setClock(400000); //STM32F401 supports I2C standard/fast mode.
       }
       break;
     case 1:
       if(cfg.pin_i2c1_sda >= 0 && cfg.pin_i2c1_scl >= 0) {
         TwoWire *i2c = new TwoWire(cfg.pin_i2c1_sda, cfg.pin_i2c1_scl);
-        //i2c->setClock(1000000);
         i2c->begin();
         hal_i2c[1] = new MF_I2CPtrWrapper<decltype(i2c)>( i2c );
-        hal_i2c[1]->setClock(1000000); //set clock here so that MF_I2C wrapper knows the clock speed 
+        hal_i2c[1]->setClock(400000); //Keep the wrapper and peripheral clock in sync.
       }
       break;
   }

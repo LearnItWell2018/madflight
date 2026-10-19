@@ -84,6 +84,7 @@ class ImuGizmo {
 public:
   virtual ~ImuGizmo() {}
   virtual const char* name() = 0;
+  virtual bool sampleValid() { return true; }
   virtual void getMotion6NED(float *ax, float *ay, float *az, float *gx, float *gy, float *gz) = 0;
   virtual void getMotion9NED(float *ax, float *ay, float *az, float *gx, float *gy, float *gz, float *mx, float *my, float *mz) {(void)ax;(void)ay;(void)az;(void)gx;(void)gy;(void)gz;(void)mx;(void)my;(void)mz;};
 };
@@ -103,6 +104,7 @@ class Imu : public ImuState {
     volatile uint32_t interrupt_cnt = 0; //number of times interrupt was triggered since start
     uint32_t update_cnt = 0; //number of times imu task was executed since start
     uint32_t overrun_cnt = 0; //number of interrupt overruns (should stay 0)
+    uint32_t read_error_cnt = 0; //failed sensor reads, excluded from updates/callbacks
     bool _imu_interrupt_busy = false; //is interrupt handler running?
     
     //statistics - sum of values since last statReset()

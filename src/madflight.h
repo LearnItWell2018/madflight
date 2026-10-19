@@ -426,11 +426,12 @@ void madflight_setup() {
 
   // IMU - Some IMU sensors need a couple of tries...
   int tries = 10;
-  while(true) {
+  while(tries > 0) {
     int rv = imu.setup(); //request 1000 Hz sample rate, returns 0 on success, positive on error, negative on warning
-    if(rv<=0) break;
+    if(rv == 0) break;
     tries--;
     Serial.printf("IMU: WARNING init failed rv=%d\n", rv);
+    delay(100);
   }
   if(!imu.installed() && (Cfg::imu_gizmo_enum)cfg.imu_gizmo != Cfg::imu_gizmo_enum::mf_NONE) {
     madflight_panic("IMU install failed.");
@@ -457,7 +458,13 @@ void madflight_setup() {
     ahr.setInitalOrientation(); //do this before IMU update handler is started
 
     if(imu.topic.get_generation() == 0) {
-      madflight_panic(String("IMU interrupt not firing. Is pin_imu_int GPIO" + String(cfg.pin_imu_int) + String(" connected?")));
+      Serial.printf("IMU: startup IRQ=%lu read_errors=%lu\n",
+                    (unsigned long)imu.interrupt_cnt, (unsigned long)imu.read_error_cnt);
+      if(imu.interrupt_cnt == 0) {
+        madflight_panic(String("IMU interrupt not firing. Is pin_imu_int GPIO" + String(cfg.pin_imu_int) + String(" connected?")));
+      }else{
+        madflight_panic("IMU interrupts received, but no valid samples. Check I2C errors/task startup.");
+      }
     }
 
     if(!imu_loop) Serial.println("IMU: WARNING 'void imu_loop()' not defined.");

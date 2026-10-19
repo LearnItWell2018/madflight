@@ -7,9 +7,7 @@
   #define MF_HACK_STM32_INTERRUPT_PRIORITY 1
 #endif
 
-#if MF_HACK_STM32_INTERRUPT_PRIORITY
-  IRQn_Type hal_get_irqn_from_pin(int pin);
-#endif  
+IRQn_Type hal_get_irqn_from_pin(int pin);
 
 #ifndef IMU_EXEC
   #define IMU_EXEC IMU_EXEC_IRQ //Use IMU as interrupt by default
@@ -21,6 +19,9 @@
 
 #include <Arduino.h>
 #include <STM32FreeRTOS.h>
+#ifndef IMU_FREERTOS_TASK_PRIORITY
+  #define IMU_FREERTOS_TASK_PRIORITY (configMAX_PRIORITIES - 1)
+#endif
 #include "STM32_PWM.h" //Servo and oneshot
 #include "Dshot/Dshot.h"
 #include "DshotBidir/DshotBidir.h"
